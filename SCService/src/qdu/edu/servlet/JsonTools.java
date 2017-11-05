@@ -31,13 +31,15 @@ public class JsonTools {
             connection.close();
             System.out.println("断开数据库连接");
         } catch (JSONException e) {
+        	sendjson.put("get",false);
         	System.out.println("JSON字符串格式错误");
         } catch (SQLException e) {
+        	sendjson.put("get",false);
 			e.printStackTrace();
 		} catch (ClassNotFoundException e) {
+			sendjson.put("get",false);
 			System.out.println("tomcat下找不到MYSQL JAR包");
 		}
-		
 	}
 	
 	public void analyzeJson() throws SQLException{
@@ -49,9 +51,72 @@ public class JsonTools {
 		else if(title.equals("STUINFO"))analyzeSInfo();
 		else if(title.equals("STUSELECT"))analyzeSSelect();
 		else if(title.equals("TEASELECT"))analyzeTSelect();
+		else if(title.equals("LOADINFO"))analyzeLInfo();
+		else if(title.equals("EDITINFO"))editLInfo();
+		else if(title.equals("EDITPASSWD"))editPasswd();
 		else System.out.println("收到未知指令");
 	}
 	
+	private void editPasswd() throws SQLException {
+		sendjson.put("title", "EDIT");
+		String user=getjson.getString("user");
+		String passwd=getjson.getString("PASSWD");
+		String userid=getjson.getString("USERID");
+		if(user.equals("STUDENT")){
+			sql="update student set password='"+passwd+"' where no='"+userid+"'";
+		}else sql="update teacher set password='"+passwd+"' where no='"+userid+"'";
+		statement=connection.prepareStatement(sql);
+		int num = statement.executeUpdate();
+		if(num<=0)sendjson.put("STATUS", false);
+		else sendjson.put("STATUS", true);
+		sendjson.put("get",true);
+	}
+
+	private void editLInfo() throws SQLException {
+		sendjson.put("title", "EDIT");
+		String userid=getjson.getString("USERID");
+		String phone=getjson.getString("PHONE");
+		sql="update teacher set tel='"+phone+"' where no='"+userid+"'";
+		statement=connection.prepareStatement(sql);
+		int num = statement.executeUpdate();
+		if(num<=0){
+			sendjson.put("STATUS", false);
+		}else sendjson.put("STATUS", true);
+		sendjson.put("get",true);
+	}
+
+	private void analyzeLInfo() throws SQLException {
+		sendjson.put("title", "LOADINFO");
+		String user=getjson.getString("user");
+		String userid=getjson.getString("USERID");
+		if(user.equals("STUDENT")){
+			sendjson.put("USER", "STUDENT");
+			sql="select classname from a_allstudentinfo where stunum='"+userid+"'";
+			statement=connection.prepareStatement(sql);
+			ResultSet rs = statement.executeQuery();
+			while(rs.next()){
+				String classname=rs.getString("classname");
+				sendjson.put("DEPART", classname);
+			}
+		}else{
+			sendjson.put("USER", "TEACHER");
+			sql="select name,phone,department,titlesum from a_allteacherinfo where teanum='"+userid+"'";
+			statement=connection.prepareStatement(sql);
+			ResultSet rs = statement.executeQuery();
+			while(rs.next()){
+				String name=rs.getString("name");
+				String depart=rs.getString("department");
+				int titlesum=rs.getInt("titlesum");
+				String phone=rs.getString("phone");
+				sendjson.put("STUNAME", name);
+				sendjson.put("DEPART", depart);
+				sendjson.put("TITLESUM", titlesum);
+				sendjson.put("PHONE", phone+"");
+			}
+		}
+		sendjson.put("get",true);
+	}
+
 	private void analyzeTSelect() throws SQLException {
 		String coursenum=getjson.getString("COURSENUM");
 		String stunum=getjson.getString("STUNUM");
@@ -182,10 +247,9 @@ public class JsonTools {
 		}
 		if(getjson.getString("user").equals("STUDENT"))stuHSCourse();
 		else teaHSCourse();
-		sendjson.put("get", true);
 		sendjson.put("ALLCOURSE", coursearray);
 		sendjson.put("ALLSTUDENT", studentarray);
-		
+		sendjson.put("get", true);
 	}
 	
 	private void teaHSCourse() throws SQLException {
@@ -208,7 +272,6 @@ public class JsonTools {
 			courseinfo.put("STUNUM", stuarray);
 			coursearray.put(courseinfo);
 		}
-		System.out.println("dfgdgfdgsfdss");
 		sendjson.put("HSCOURSE", coursearray);
 		sendjson.put("USER", "TEACHER");
 	}
@@ -226,7 +289,7 @@ public class JsonTools {
 	}
 	
 	private void analyzeLoad() throws SQLException {
-		sendjson.put("title", "LOADINFO");
+		sendjson.put("title", "LOAD");
 		if(getjson.getString("user").equals("STUDENT"))stuLoad();
 		else teaLoad();
 	}
@@ -237,7 +300,8 @@ public class JsonTools {
 		statement=connection.prepareStatement(sql);
 		ResultSet rs = statement.executeQuery();
 		if(rs.next()){
-			sendjson.put("TEANAME",rs.getString("name"));
+			sendjson.put("NAME",rs.getString("name"));
+			sendjson.put("ISSURE", false);
 			sendjson.put("get", true);
 		}else {
 			sendjson.put("get", false);
@@ -250,17 +314,13 @@ public class JsonTools {
 		statement=connection.prepareStatement(sql);
 		ResultSet rs = statement.executeQuery();
 		if(rs.next()){
-			sql="select stuname,classname,count,suretitle from a_allstudentinfo where stunum='"+json.getString("USERID")+"'";
+			sql="select stuname,classname,count,coursenum from a_allstudentinfo where stunum='"+json.getString("USERID")+"'";
 			statement=connection.prepareStatement(sql);
 			rs=statement.executeQuery();
 			if(rs.next()){
 				sendjson.put("get", true);
-				sendjson.put("STUNAME", rs.getString("stuname"));
-				if(rs.getString("suretitle")==null)sendjson.put("ISSURE", false);
-				else{
-					sendjson.put("ISSURE", true);
-					sendjson.put("TITLE", rs.getString("suretitle"));
-				}
+				sendjson.put("NAME", rs.getString("stuname"));
+				sendjson.put("ISSURE", rs.getString("coursenum")==null);
 			}else{
 				sendjson.put("get", false);
 			}
