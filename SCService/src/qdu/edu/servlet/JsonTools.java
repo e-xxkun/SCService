@@ -5,6 +5,10 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -13,11 +17,12 @@ public class JsonTools {
 
 	private JSONObject getjson;
 	private JSONObject sendjson;
+	private SqlTools sql;
 	private Connection connection;
 	private PreparedStatement statement;
 	private String sql;
 	
-	private static final String JDBC_DRIVER = "com.mysql.jdbc.Driver";  
+	private static final String JDBC_DRIVER = "com.mysql.jdbc.Driver";
     private static final String DB_URL = "jdbc:mysql://localhost:3306/choicedb";
     private static final String USEID = "root";
     private static final String PASSWD = "xkk0512";
@@ -52,11 +57,80 @@ public class JsonTools {
 		else if(title.equals("STUSELECT"))analyzeSSelect();
 		else if(title.equals("TEASELECT"))analyzeTSelect();
 		else if(title.equals("LOADINFO"))analyzeLInfo();
-		else if(title.equals("EDITINFO"))editLInfo();
+		else if(title.equals("EDITINFO"))editTInfo();
+		else if(title.equals("DELCOURSE"))delCourse();
+		else if(title.equals("RENAME"))renameCourse();
+		else if(title.equals("ADDCOURSE"))addCourse();
 		else if(title.equals("EDITPASSWD"))editPasswd();
 		else System.out.println("收到未知指令");
 	}
 	
+	private void addCourse() throws SQLException {
+		
+		String teanum=getjson.getString("TEANUM");
+		String title=getjson.getString("TITLE");
+		sql="select departcode,teacode,cur from a_allteacherinfo where teanum='"+teanum+"'";
+		statement=connection.prepareStatement(sql);
+		ResultSet rs = statement.executeQuery();
+		while(rs.next()){
+			String teacode=rs.getString("teacode");
+			String departcode=rs.getString("departcode");
+			int cur=rs.getInt("cur");
+			String no;
+			if(cur<10)no=departcode+teacode+"0"+cur;
+			else no=departcode+teacode+cur;
+			sql="insert into project(teacher_no,no,title) values('"+teanum+"','"+no+"','"+title+"')";
+			statement=connection.prepareStatement(sql);
+			int num = statement.executeUpdate();
+			if(num<=0){
+				sendjson.put("STATUS",false);
+				return;
+			}
+			sql="update teacher set title_cur=title_cur+1,title_sum=title_sum+1 where no='"+teanum+"'";
+			statement=connection.prepareStatement(sql);
+			num = statement.executeUpdate();
+			if(num<=0){
+				sendjson.put("STATUS", false);
+				return;
+			}
+			analyzeGet();
+		}
+		
+	}
+
+	private void renameCourse() throws SQLException {
+		String coursenum=getjson.getString("COURSENUM");
+		String title=getjson.getString("TITLE");
+		sql="update project set title='"+title+"' where no='"+coursenum+"'";
+		statement=connection.prepareStatement(sql);
+		int num = statement.executeUpdate();
+		if(num<=0){
+			sendjson.put("STATUS", false);
+			return;
+		}
+		analyzeGet();
+	}
+
+	private void delCourse() throws SQLException {
+		String teanum=getjson.getString("TEANUM");
+		String coursenum=getjson.getString("COURSENUM");
+		sql="delete from project where no='"+coursenum+"'";
+		statement=connection.prepareStatement(sql);
+		int num = statement.executeUpdate();
+		if(num<=0){
+			sendjson.put("STATUS", false);
+			return;
+		}
+		sql="update teacher set title_sum=title_sum-1 where no='"+teanum+"'";
+		statement=connection.prepareStatement(sql);
+		num = statement.executeUpdate();
+		if(num<=0){
+			sendjson.put("STATUS", false);
+			return;
+		}
+		analyzeGet();
+	}
+
 	private void editPasswd() throws SQLException {
 		sendjson.put("title", "EDIT");
 		String user=getjson.getString("user");
@@ -72,7 +146,7 @@ public class JsonTools {
 		sendjson.put("get",true);
 	}
 
-	private void editLInfo() throws SQLException {
+	private void editTInfo() throws SQLException {
 		sendjson.put("title", "EDIT");
 		String userid=getjson.getString("USERID");
 		String phone=getjson.getString("PHONE");
@@ -233,7 +307,7 @@ public class JsonTools {
 			courseinfo.put("STUNUM", rs.getString("stunum")+"");
 			coursearray.put(courseinfo);
 		}
-		sql="select stunum,stuname,count,suretitle from a_allstudentinfo";
+		sql="select stunum,stuname,count,coursenum from a_allstudentinfo";
 		statement=connection.prepareStatement(sql);
 		rs = statement.executeQuery();
 		JSONArray studentarray=new JSONArray();
@@ -242,7 +316,7 @@ public class JsonTools {
 			studentinfo.put("STUNUM", rs.getString("stunum"));
 			studentinfo.put("STUNAME", rs.getString("stuname"));
 			studentinfo.put("COUNT", rs.getString("count"));
-			studentinfo.put("TITLE", rs.getString("suretitle")+"");
+			studentinfo.put("COURSENUM", rs.getString("coursenum")+"");
 			studentarray.put(studentinfo);
 		}
 		if(getjson.getString("user").equals("STUDENT"))stuHSCourse();
@@ -272,6 +346,13 @@ public class JsonTools {
 			courseinfo.put("STUNUM", stuarray);
 			coursearray.put(courseinfo);
 		}
+		sql="select title_max,title_sum from teacher where no='"+getjson.getString("TEANUM")+"'";
+		statement=connection.prepareStatement(sql);
+		rs = statement.executeQuery();
+		if(rs.next()){
+			sendjson.put("COURSEMAX",rs.getInt("title_max"));
+			sendjson.put("COURSESUM",rs.getInt("title_sum"));
+		}
 		sendjson.put("HSCOURSE", coursearray);
 		sendjson.put("USER", "TEACHER");
 	}
@@ -296,31 +377,97 @@ public class JsonTools {
 	
 	private void teaLoad() throws SQLException {
 		JSONObject json=getjson.getJSONObject("loadinfo");
-		sql="select no,password,name from teacher where no='"+json.getString("USERID")+"' and password='"+json.getString("PASSWD")+"'";
+		sql="select tea_title_begin_date,tea_title_end_date,tea_choice_begin_date,tea_choice_end_date from flag_date";
 		statement=connection.prepareStatement(sql);
 		ResultSet rs = statement.executeQuery();
 		if(rs.next()){
+			Date now = new Date();
+			System.out.println(now);
+			SimpleDateFormat format=new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+			String time="",title="";
+			try {
+				if(now.compareTo(format.parse(time=rs.getString("tea_title_begin_date")))<0)title="TITLEBEGIN";
+				else if(now.compareTo(format.parse(time=rs.getString("tea_title_end_date")))<0)title="TITLEEND";
+				else if(now.compareTo(format.parse(time=rs.getString("tea_choice_begin_date")))<0)title="CHOICEBEGIN";
+				else if(now.compareTo(format.parse(time=rs.getString("tea_choice_end_date")))<0)title="CHOICEEND";
+				else {
+					time="0";
+					title="END";
+				}
+				sendjson.put("TIMETITLE", title);
+				sendjson.put("TIME", time);
+				
+			} catch (ParseException e) {
+				System.out.println("时间格式错误");
+			}
+		}else {
+			sendjson.put("get", false);
+			return;
+		}
+		sql="select no,password,name,title_max,title_sum from teacher where no='"+json.getString("USERID")+"' and password='"+json.getString("PASSWD")+"'";
+		statement=connection.prepareStatement(sql);
+		rs = statement.executeQuery();
+		if(rs.next()){
+			sendjson.put("COURSEMAX",rs.getInt("title_max"));
+			sendjson.put("COURSESUM",rs.getInt("title_sum"));
 			sendjson.put("NAME",rs.getString("name"));
 			sendjson.put("ISSURE", false);
 			sendjson.put("get", true);
-		}else {
-			sendjson.put("get", false);
-		}
+		}else sendjson.put("get", false);
 	}
 
 	private void stuLoad() throws SQLException {
 		JSONObject json=getjson.getJSONObject("loadinfo");
-		sql="select no,password from student where no='"+json.getString("USERID")+"' and password='"+json.getString("PASSWD")+"'";
+		sql="select stu_choice_begin_date,stu_choice_end_date from flag_date";
 		statement=connection.prepareStatement(sql);
 		ResultSet rs = statement.executeQuery();
 		if(rs.next()){
-			sql="select stuname,classname,count,coursenum from a_allstudentinfo where stunum='"+json.getString("USERID")+"'";
+			SimpleDateFormat format=new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+			Date now =new Date();
+			System.out.println(now);
+			String time="",title="";
+			try {
+				if(now.compareTo(format.parse(time=rs.getString("stu_choice_begin_date")))<0)title="CHOICEBEGIN";
+				else if(now.compareTo(format.parse(time=rs.getString("stu_choice_end_date")))<0)title="CHOICEEND";
+				else {
+					time="0";
+					title="END";
+				}
+				sendjson.put("TIMETITLE", title);
+				sendjson.put("TIME", time);
+			} catch (ParseException e) {
+				System.out.println("时间格式错误");
+			}
+		}else {
+			sendjson.put("get", false);
+			return;
+		}
+		sql="select no,password from student where no='"+json.getString("USERID")+"' and password='"+json.getString("PASSWD")+"'";
+		statement=connection.prepareStatement(sql);
+		rs = statement.executeQuery();
+		if(rs.next()){
+			sql="select stuname,issure,coursenum from a_allstudentinfo where stunum='"+json.getString("USERID")+"'";
 			statement=connection.prepareStatement(sql);
 			rs=statement.executeQuery();
 			if(rs.next()){
 				sendjson.put("get", true);
 				sendjson.put("NAME", rs.getString("stuname"));
-				sendjson.put("ISSURE", rs.getString("coursenum")==null);
+				sendjson.put("ISSURE",rs.getInt("issure")==1);
+				if(rs.getInt("issure")==1){
+					String coursenum=rs.getString("coursenum");
+					sql="select * from a_allcourseinfo where coursenum='"+coursenum+"'";
+					statement=connection.prepareStatement(sql);
+					rs = statement.executeQuery();
+					JSONObject courseinfo=new JSONObject();
+					while(rs.next()){
+						courseinfo.put("COURSENUM",coursenum);
+						courseinfo.put("PHONE", rs.getString("phone")+"");
+						courseinfo.put("DEPARTMENT", rs.getString("department")+"");
+						courseinfo.put("TEACHER", rs.getString("teaname")+"");
+						courseinfo.put("TITLE", rs.getString("title")+"");
+					}
+					sendjson.put("COURSEINFO", courseinfo);
+				}
 			}else{
 				sendjson.put("get", false);
 			}
