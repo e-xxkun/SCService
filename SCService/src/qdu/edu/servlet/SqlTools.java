@@ -16,6 +16,8 @@ public class SqlTools {
 	private PreparedStatement statement;
 	private String sql;
 	
+	private boolean iscommint=true;
+	
 	public SqlTools() throws ClassNotFoundException, SQLException{
 		connection();
 	}
@@ -29,6 +31,12 @@ public class SqlTools {
 	
 	public ResultSet select(String select,String from,String where) throws SQLException{
 		sql="select "+select+" from "+from+" where "+where;
+		statement=connection.prepareStatement(sql);
+		return statement.executeQuery();
+	}
+	
+	public ResultSet select(String select,String from) throws SQLException{
+		sql="select "+select+" from "+from;
 		statement=connection.prepareStatement(sql);
 		return statement.executeQuery();
 	}
@@ -49,5 +57,49 @@ public class SqlTools {
 		sql="delete from "+from+" where "+where;
 		statement=connection.prepareStatement(sql);
 		return statement.executeUpdate();
+	}
+	
+	public void close(){
+		try {
+			connection.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public void startCommit(){
+		try {
+			connection.setAutoCommit(false);
+			iscommint=false;
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		
+	}
+	
+	public void commit(){
+		try {
+			connection.commit();
+			iscommint=true;
+			connection.setAutoCommit(true);
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		
+	}
+	
+	public void rollback(){
+		try {
+			connection.rollback();
+			connection.setAutoCommit(true);
+			iscommint=true;
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		
+	}
+	
+	public boolean isCommit(){
+		return iscommint;
 	}
 }

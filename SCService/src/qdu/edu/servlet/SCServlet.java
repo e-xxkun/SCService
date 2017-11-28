@@ -11,6 +11,7 @@ import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 
 @WebServlet("/SCServlet")
 public class SCServlet extends HttpServlet {
@@ -24,6 +25,17 @@ public class SCServlet extends HttpServlet {
 		request.setCharacterEncoding("utf-8");
 		response.setHeader("Content-type", "text/html;charset=UTF-8");
         System.out.println("service receiver sccess");
+        HttpSession session = request.getSession(false);
+        if(session==null){
+        	session= request.getSession();
+        }else if (session.isNew()) {
+        	PrintWriter pw = response.getWriter();
+            pw.write("{\"STATUS\":false}");
+            pw.close();
+            return;
+        }else {
+        	response.addHeader("Set-Cookie","JSESSIONID="+session.getId());
+        }
         BufferedReader br = new BufferedReader(new InputStreamReader((ServletInputStream) request.getInputStream()));
         StringBuffer sb = new StringBuffer("");
         String temp;
