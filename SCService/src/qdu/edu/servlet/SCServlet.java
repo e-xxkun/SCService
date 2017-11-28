@@ -26,9 +26,8 @@ public class SCServlet extends HttpServlet {
 		response.setHeader("Content-type", "text/html;charset=UTF-8");
         System.out.println("service receiver sccess");
         HttpSession session = request.getSession(false);
-        if(session==null){
-        	session= request.getSession();
-        }else if (session.isNew()) {
+        if(session==null);
+        else if (session.isNew()) {
         	PrintWriter pw = response.getWriter();
             pw.write("{\"STATUS\":false}");
             pw.close();
@@ -45,7 +44,15 @@ public class SCServlet extends HttpServlet {
         br.close();
         System.out.println("请求报文:" + sb.toString());
         System.out.println("请求成功");
-        JsonTools jt=new JsonTools(sb.toString());
+        JsonTools jt=new JsonTools();
+        jt.setOnLoadOnListener(new JsonTools.OnLoadOnListener(){
+			
+			@Override
+			public void onLoadOn() {
+				response.addHeader("Set-Cookie","JSESSIONID="+request.getSession().getId());
+			}
+		});
+        jt.Analyze(sb.toString());
         PrintWriter pw = response.getWriter();
         pw.write(jt.getJsonStr());
         System.out.println("返回报文:" + jt.getJsonStr());

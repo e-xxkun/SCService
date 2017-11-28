@@ -14,8 +14,12 @@ public class JsonTools {
 	private JSONObject getjson;
 	private JSONObject sendjson;
 	private SqlTools sql;
+	private OnLoadOnListener onLoadOnListener;
+	public JsonTools(){
+		
+	}
 	
-	public JsonTools(String js){
+	public void Analyze(String js){
 		try {
 			sql=new SqlTools();
 			sendjson=new JSONObject();
@@ -23,19 +27,20 @@ public class JsonTools {
             analyzeJson();
             System.out.println("断开数据库连接");
         } catch (JSONException e) {
-        	sendjson.put("STATUS", false);
+        	sendjson.put("STATUS", 0);
         	System.out.println("JSON字符串格式错误");
         	e.printStackTrace();
         } catch (SQLException e) {
         	if(!sql.isCommit()){
         		sql.rollback();
-        		analyzeGet();
+        		sendjson.put("title", "INFO");
+        		get();
         	}
-        	sendjson.put("STATUS", false);
+        	sendjson.put("STATUS", 0);
         	System.out.println("提交出错");
 			e.printStackTrace();
 		} catch (ClassNotFoundException e) {
-			sendjson.put("STATUS", false);
+			sendjson.put("STATUS", 0);
 			System.out.println("tomcat下找不到MYSQL JAR包");
 			e.printStackTrace();
 		}finally{
@@ -68,12 +73,14 @@ public class JsonTools {
 		if(getjson.getString("user").equals("STUDENT"))sql.update("student","grade="+getjson.getInt("GRADE"), "no="+getjson.getString("USERID"));
 		else sql.update("teacher", "grade="+getjson.getInt("GRADE"), "no="+getjson.getString("USERID"));
 		sendjson.put("GRADE", getjson.getInt("GRADE"));
-		sendjson.put("STATUS", true);
+		sendjson.put("STATUS", 1);
 	}
 
 	private void addCourse() throws SQLException {
+		sendjson.put("title", "INFO");
 		String teanum=getjson.getString("USERID");
 		String title=getjson.getString("TITLE");
+		String remark=getjson.getString("REMARK");
 		ResultSet rs =sql.select("departcode,teacode,cur", "a_allteacherinfo", "teanum='"+teanum+"'");
 		while(rs.next()){
 			String teacode=rs.getString("teacode");
@@ -83,35 +90,42 @@ public class JsonTools {
 			if(cur<10)no=departcode+teacode+"0"+cur;
 			else no=departcode+teacode+cur;
 			sql.startCommit();
-			sql.insert("project", "teacher_no,no,title", "'"+teanum+"','"+no+"','"+title+"'");
+			sql.insert("project", "teacher_no,no,title,remark", "'"+teanum+"','"+no+"','"+title+"','"+remark+"'");
 			sql.update("teacher", "title_cur=title_cur+1,title_sum=title_sum+1", "no='"+teanum+"'");
 			sql.commit();
-			analyzeGet();
+			get();
+			sendjson.put("STATUS", 1);
 		}
 	}
 
 	private void scoreCourse() throws SQLException {
+		sendjson.put("title", "INFO");
 		String coursenum=getjson.getString("COURSENUM");
 		String score=getjson.getString("SCORE");
 		sql.update("project", "score='"+score+"'", "no='"+coursenum+"'");
-		analyzeGet();
+		get();
+		sendjson.put("STATUS", 1);
 	}
 	
 	private void renameCourse() throws SQLException {
+		sendjson.put("title", "INFO");
 		String coursenum=getjson.getString("COURSENUM");
 		String title=getjson.getString("TITLE");
 		sql.update("project", "title='"+title+"'", "no='"+coursenum+"'");
-		analyzeGet();
+		get();
+		sendjson.put("STATUS", 1);
 	}
 
 	private void delCourse() throws SQLException {
+		sendjson.put("title", "INFO");
 		String teanum=getjson.getString("USERID");
 		String coursenum=getjson.getString("COURSENUM");
 		sql.startCommit();
 		sql.delete("project", "no='"+coursenum+"'");
 		sql.update("teacher", "title_sum=title_sum-1", "no='"+teanum+"'");
 		sql.commit();
-		analyzeGet();
+		get();
+		sendjson.put("STATUS", 1);
 	}
 
 	private void editPasswd() throws SQLException {
@@ -123,7 +137,7 @@ public class JsonTools {
 		if(user.equals("STUDENT"))type="student";
 		else type="teacher";
 		sql.update(type, "password='"+passwd+"'", "no='"+userid+"'");
-		sendjson.put("STATUS", true);
+		sendjson.put("STATUS", 1);
 	}
 
 	private void editTInfo() throws SQLException {
@@ -131,7 +145,7 @@ public class JsonTools {
 		String userid=getjson.getString("USERID");
 		String phone=getjson.getString("PHONE");
 		sql.update("teacher", "tel='"+phone+"'", "no='"+userid+"'");
-		sendjson.put("STATUS", true);
+		sendjson.put("STATUS", 1);
 	}
 
 	private void analyzeUInfo() throws SQLException {
@@ -159,7 +173,7 @@ public class JsonTools {
 				sendjson.put("PHONE", phone+"");
 			}
 		}
-		sendjson.put("STATUS", true);
+		sendjson.put("STATUS", 1);
 	}
 
 	private void analyzeSInfo() throws SQLException {
@@ -176,7 +190,7 @@ public class JsonTools {
 			stuinfo.put("COURSEINFO", coursearray);
 		}
 		sendjson.put("STUINFO", stuinfo);
-		sendjson.put("STATUS", true);
+		sendjson.put("STATUS", 1);
 	}
 
 	private void analyzeCInfo() throws SQLException {
@@ -187,6 +201,7 @@ public class JsonTools {
 			courseinfo.put("TEANUM", rs.getString("teanum")+"");
 			courseinfo.put("PHONE", rs.getString("phone")+"");
 			courseinfo.put("DEPARTMENT", rs.getString("department")+"");
+			courseinfo.put("REMARK", rs.getString("remark")+"");
 			JSONArray stuarray=new JSONArray();
 			ResultSet srs = sql.select("*", "pre_choice", "project_no='"+getjson.getString("COURSENUM")+"'");
 			while(srs.next()){
@@ -195,10 +210,11 @@ public class JsonTools {
 			courseinfo.put("STUINFO", stuarray);
 		}
 		sendjson.put("COURSEINFO", courseinfo);
-		sendjson.put("STATUS", true);
+		sendjson.put("STATUS", 1);
 	}
 //老师选学生
 	private void analyzeTSelect() throws SQLException {
+		sendjson.put("title", "INFO");
 		String coursenum=getjson.getString("COURSENUM");
 		String stunum=getjson.getString("STUNUM");
 		sql.startCommit();
@@ -206,37 +222,45 @@ public class JsonTools {
 		sql.delete("pre_choice", "project_no = '"+coursenum+"' and student_no != '"+stunum+"'");
 		sql.delete("pre_choice", "project_no != '"+coursenum+"' and student_no = '"+stunum+"'");
 		sql.commit();
-		analyzeGet();
+		get();
+		sendjson.put("STATUS", 1);
 	}
 //学生选课题
 	private void analyzeSSelect() throws SQLException {
+		sendjson.put("title", "SELECT");
 		String stunum=getjson.getString("USERID");
 		JSONArray coursejson=getjson.getJSONArray("COURSENUM");
-		int i=0;
-		sql.startCommit();
+		int i=0,j=0;
 		while(!coursejson.isNull(i)){
 			sql.insert("pre_choice", "project_no,student_no", "'"+coursejson.getString(i)+"','"+stunum+"'");
+			if(true)j++;
 			i++;
 		}
-		sql.commit();
-		analyzeGet();
+		get();
+		sendjson.put("STATUS", j);
 	}
 //学生删除课题
 	private void analyzeRemove() throws SQLException{
+		sendjson.put("title", "REMOVE");
 		JSONArray coursejson=getjson.getJSONArray("COURSENUM");
 		String stunum=getjson.getString("USERID");
-		int i=0;
-		sql.startCommit();
+		int i=0,j=0;
 		while(!coursejson.isNull(i)){
 			sql.delete("pre_choice", "project_no='"+coursejson.getString(i)+"' and student_no='"+stunum+"'");
+			if(true)j++;
 			i++;
 		}
-		sql.commit();
-		analyzeGet();
+		get();
+		sendjson.put("STATUS", j);
 	}
 
-	private void analyzeGet(){
+	private void analyzeGet() {
 		sendjson.put("title", "INFO");
+		get();
+		sendjson.put("STATUS", 1);
+	}
+	
+	private void get(){
 		ResultSet rs;
 		JSONArray coursearray=new JSONArray();
 		JSONArray studentarray=new JSONArray();
@@ -268,7 +292,6 @@ public class JsonTools {
 		}
 		sendjson.put("ALLCOURSE", coursearray);
 		sendjson.put("ALLSTUDENT", studentarray);
-		sendjson.put("STATUS", true);
 	}
 	
 	private void teaHSCourse() throws SQLException {
@@ -347,11 +370,12 @@ public class JsonTools {
 					System.out.println("时间格式错误");
 				}
 			}else {
-				sendjson.put("STATUS", false);
+				sendjson.put("STATUS", 0);
 				return;
 			}
-			sendjson.put("STATUS", true);
-		}else sendjson.put("STATUS", false);
+			sendjson.put("STATUS", 1);
+			onLoadOnListener.onLoadOn();
+		}else sendjson.put("STATUS", 0);
 	}
 
 	private void stuLoad() throws SQLException {
@@ -378,11 +402,12 @@ public class JsonTools {
 						courseinfo.put("DEPARTMENT", rs.getString("department")+"");
 						courseinfo.put("TEACHER", rs.getString("teaname")+"");
 						courseinfo.put("TITLE", rs.getString("title")+"");
+						courseinfo.put("SCORE", rs.getString("score")+"");
 					}
 					sendjson.put("COURSEINFO", courseinfo);
 				}
 			}else{
-				sendjson.put("STATUS", false);
+				sendjson.put("STATUS", 0);
 				return;
 			}
 			rs = sql.select("stu_choice_begin_date,stu_choice_end_date", "flag_date","depart_no="+departnum);
@@ -401,14 +426,23 @@ public class JsonTools {
 					System.out.println("时间格式错误");
 				}
 			}else {
-				sendjson.put("STATUS", false);
+				sendjson.put("STATUS", 0);
 				return;
 			}
-			sendjson.put("STATUS",true);
-		}else sendjson.put("STATUS", false);
+			sendjson.put("STATUS",1);
+			onLoadOnListener.onLoadOn();
+		}else sendjson.put("STATUS", 0);
 	}
 
 	public String getJsonStr(){
 		return sendjson.toString();
+	}
+	
+	public void setOnLoadOnListener(OnLoadOnListener onLoadOnListener){
+		this.onLoadOnListener=onLoadOnListener;
+	}
+	
+	public interface OnLoadOnListener{
+		public void onLoadOn();
 	}
 }
