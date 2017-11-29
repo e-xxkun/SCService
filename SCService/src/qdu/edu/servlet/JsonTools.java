@@ -85,10 +85,10 @@ public class JsonTools {
 		while(rs.next()){
 			String teacode=rs.getString("teacode");
 			String departcode=rs.getString("departcode");
-			int cur=rs.getInt("cur");
+			int cur=rs.getInt("cur")+1;
 			String no;
-			if(cur<10)no=departcode+teacode+"0"+cur;
-			else no=departcode+teacode+cur;
+			if(cur<10)no=departcode+"_"+teacode+"_0"+cur;
+			else no=departcode+"_"+teacode+"_"+cur;
 			sql.startCommit();
 			sql.insert("project", "teacher_no,no,title,remark", "'"+teanum+"','"+no+"','"+title+"','"+remark+"'");
 			sql.update("teacher", "title_cur=title_cur+1,title_sum=title_sum+1", "no='"+teanum+"'");
@@ -265,7 +265,7 @@ public class JsonTools {
 		JSONArray coursearray=new JSONArray();
 		JSONArray studentarray=new JSONArray();
 		try {
-			rs = sql.select("coursenum,title,teaname,count,stunum", "a_allcourseinfo");
+			rs = sql.select("coursenum,title,teaname,count,stunum", "a_allcourseinfo","no="+getjson.getInt("DEPARTNUM"));
 			while(rs.next()){
 				JSONObject courseinfo=new JSONObject();
 				courseinfo.put("COURSENUM", rs.getString("coursenum"));
@@ -275,7 +275,7 @@ public class JsonTools {
 				courseinfo.put("STUNUM", rs.getString("stunum")+"");
 				coursearray.put(courseinfo);
 			}
-			rs = sql.select("stunum,stuname,count,coursenum", "a_allstudentinfo");
+			rs = sql.select("stunum,stuname,count,coursenum", "a_allstudentinfo","no="+getjson.getInt("DEPARTNUM"));
 			while(rs.next()){
 				JSONObject studentinfo=new JSONObject();
 				studentinfo.put("STUNUM", rs.getString("stunum"));
@@ -375,7 +375,7 @@ public class JsonTools {
 			}
 			sendjson.put("STATUS", 1);
 			onLoadOnListener.onLoadOn();
-		}else sendjson.put("STATUS", 0);
+		}else sendjson.put("STATUS", 2);
 	}
 
 	private void stuLoad() throws SQLException {
@@ -431,7 +431,7 @@ public class JsonTools {
 			}
 			sendjson.put("STATUS",1);
 			onLoadOnListener.onLoadOn();
-		}else sendjson.put("STATUS", 0);
+		}else sendjson.put("STATUS", 2);
 	}
 
 	public String getJsonStr(){

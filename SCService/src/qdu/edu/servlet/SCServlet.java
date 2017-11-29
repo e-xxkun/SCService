@@ -29,7 +29,7 @@ public class SCServlet extends HttpServlet {
         if(session==null);
         else if (session.isNew()) {
         	PrintWriter pw = response.getWriter();
-            pw.write("{\"STATUS\":false}");
+            pw.write("{\"STATUS\":0}");
             pw.close();
             return;
         }else {
